@@ -1,0 +1,9 @@
+{
+  "name": "VIGYANSAT",
+  "description": "Real-time satellite telemetry from ESP32-C3 via USB Serial with 3D satellite visualization.",
+  "requestFramePermissions": [
+    "serial",
+    "usb"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
