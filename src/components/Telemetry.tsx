@@ -10,13 +10,9 @@ interface TelemetryProps {
 export const Telemetry: React.FC<TelemetryProps> = ({
   telemetry,
   usbStatus,
-  lastDataTimestamp,
 }) => {
   const isConnected = usbStatus === 'CONNECTED';
   const hasTelemetry = isConnected && telemetry !== null;
-
-  const ismStatus = hasTelemetry ? 'ONLINE (RECEIVING)' : isConnected ? 'STANDBY' : 'OFFLINE';
-  const mmcStatus = hasTelemetry ? 'ONLINE (RECEIVING)' : isConnected ? 'STANDBY' : 'OFFLINE';
 
   const formatVal = (val: number | undefined, precision = 2): string => {
     if (!hasTelemetry || typeof val !== 'number' || isNaN(val)) {
@@ -266,28 +262,6 @@ export const Telemetry: React.FC<TelemetryProps> = ({
             </span>
           </div>
         </div>
-      </div>
-
-      {/* 5. HARDWARE BUS & PACKET DIAGNOSTICS */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-300/80 shadow-md flex flex-col gap-2 text-xs">
-        <div className="flex items-center justify-between">
-          <span className="text-slate-600 font-bold">ISM330DHCX IMU:</span>
-          <span className={`font-black ${hasTelemetry ? 'text-emerald-700' : 'text-slate-500'}`}>
-            {ismStatus}
-          </span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-slate-600 font-bold">MMC5983MA MAG:</span>
-          <span className={`font-black ${hasTelemetry ? 'text-emerald-700' : 'text-slate-500'}`}>
-            {mmcStatus}
-          </span>
-        </div>
-        {lastDataTimestamp && (
-          <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px] text-slate-500">
-            <span>Last Telemetry Frame:</span>
-            <span className="font-mono font-bold text-slate-700">Just now</span>
-          </div>
-        )}
       </div>
     </div>
   );

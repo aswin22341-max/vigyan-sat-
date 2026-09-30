@@ -22,38 +22,23 @@ export const CubeSatelliteViewer: React.FC<CubeSatelliteViewerProps> = ({
   const beaconMeshRef = useRef<THREE.Mesh | null>(null);
   const resetCameraFnRef = useRef<(() => void) | null>(null);
 
-  // Manual rotation test offsets
-  const manualPitchRef = useRef<number>(0);
-  const manualRollRef = useRef<number>(0);
-  const manualYawRef = useRef<number>(0);
-  const [manualOffset, setManualOffset] = useState<{ pitch: number; roll: number; yaw: number }>({
-    pitch: 0,
-    roll: 0,
-    yaw: 0,
-  });
-
-  // Auto 3D orbit tumble demo mode
-  const [isAutoTumbling, setIsAutoTumbling] = useState<boolean>(false);
-  const isAutoTumblingRef = useRef<boolean>(false);
-
   // High-stability filtered attitude memory
+  const targetPitchRef = useRef<number>(0);
+  const targetRollRef = useRef<number>(0);
+  const targetYawRef = useRef<number>(0);
   const smoothedPitch = useRef<number>(0);
   const smoothedRoll = useRef<number>(0);
   const smoothedHeading = useRef<number>(0);
   const isInitializedRef = useRef<boolean>(false);
 
   useEffect(() => {
-    isAutoTumblingRef.current = isAutoTumbling;
-  }, [isAutoTumbling]);
-
-  useEffect(() => {
     isConnectedRef.current = isConnected;
     if (!isConnected) {
       hasTelemetryRef.current = false;
       isInitializedRef.current = false;
-      if (!isAutoTumblingRef.current && manualPitchRef.current === 0 && manualRollRef.current === 0 && manualYawRef.current === 0) {
-        targetQuaternionRef.current.identity();
-      }
+      targetPitchRef.current = 0;
+      targetRollRef.current = 0;
+      targetYawRef.current = 0;
     }
   }, [isConnected]);
 
@@ -61,126 +46,51 @@ export const CubeSatelliteViewer: React.FC<CubeSatelliteViewerProps> = ({
     alertRef.current = alert;
   }, [alert]);
 
-  // ULTRA-STABLE ADAPTIVE ATTITUDE DETERMINATION
-  // Locks rock-solid when resting on desk, tracks fluidly when rotated in all directions
+  // ULTRA-FAST ZERO-OVERHEAD ATTITUDE INGESTION
   useEffect(() => {
     if (isConnected && telemetry) {
       hasTelemetryRef.current = true;
-      const { pitch, roll, heading, ax, ay, az, mx, my, gTotal } = telemetry;
+      const { pitch, roll, heading, ax, ay, az, mx, my } = telemetry;
 
       let inPitch = 0;
-      if (typeof pitch === 'number' && !isNaN(pitch)) {
-        inPitch = pitch;
-      } else if (typeof ax === 'number' && typeof ay === 'number' && typeof az === 'number') {
-        inPitch = THREE.MathUtils.radToDeg(Math.atan2(-ax, Math.sqrt(ay * ay + az * az)));
-      }
-
       let inRoll = 0;
-      if (typeof roll === 'number' && !isNaN(roll)) {
-        inRoll = roll;
-      } else if (typeof ay === 'number' && typeof az === 'number' && (ay !== 0 || az !== 0)) {
+      let inHeading = 0;
+
+      // Extract Pitch & Roll: prefer direct telemetry, fallback to accelerometer
+      if (typeof pitch === 'number' && !isNaN(pitch) && (pitch !== 0 || roll !== 0)) {
+        inPitch = pitch;
+        inRoll = typeof roll === 'number' && !isNaN(roll) ? roll : 0;
+      } else if (typeof ax === 'number' && typeof ay === 'number' && typeof az === 'number' && (ax !== 0 || ay !== 0 || az !== 0)) {
+        inPitch = THREE.MathUtils.radToDeg(Math.atan2(-ax, Math.sqrt(ay * ay + az * az)));
         inRoll = THREE.MathUtils.radToDeg(Math.atan2(ay, az));
+      } else if (typeof pitch === 'number' && !isNaN(pitch)) {
+        inPitch = pitch;
+        inRoll = typeof roll === 'number' && !isNaN(roll) ? roll : 0;
       }
 
-      let inHeading = 0;
-      if (typeof heading === 'number' && !isNaN(heading)) {
+      // Extract Heading: prefer direct heading, fallback to magnetometer
+      if (typeof heading === 'number' && !isNaN(heading) && heading !== 0) {
         inHeading = heading;
       } else if (typeof mx === 'number' && typeof my === 'number' && (mx !== 0 || my !== 0)) {
         let hdg = THREE.MathUtils.radToDeg(Math.atan2(-my, mx));
         if (hdg < 0) hdg += 360;
         inHeading = hdg;
+      } else if (typeof heading === 'number' && !isNaN(heading)) {
+        inHeading = heading;
       }
 
+      targetPitchRef.current = inPitch;
+      targetRollRef.current = inRoll;
+      targetYawRef.current = inHeading;
+
       if (!isInitializedRef.current) {
-        // Fast seed on first packet
         smoothedPitch.current = inPitch;
         smoothedRoll.current = inRoll;
         smoothedHeading.current = inHeading;
         isInitializedRef.current = true;
-      } else {
-        // ADAPTIVE STABILIZATION:
-        // Check if device is stationary (gyro rate < 2.5 deg/s and small angular delta)
-        const gyroRate = typeof gTotal === 'number' ? gTotal : 0;
-        const dP = Math.abs(inPitch - smoothedPitch.current);
-        const dR = Math.abs(inRoll - smoothedRoll.current);
-        let dH = inHeading - smoothedHeading.current;
-        while (dH > 180) dH -= 360;
-        while (dH < -180) dH += 360;
-        const absDH = Math.abs(dH);
-
-        const isQuiet = gyroRate < 2.5 && dP < 0.45 && dR < 0.45 && absDH < 0.6;
-
-        if (isQuiet) {
-          // Stationary state: apply heavy damping to freeze sensor electronic micro-noise completely
-          smoothedPitch.current += (inPitch - smoothedPitch.current) * 0.08;
-          smoothedRoll.current += (inRoll - smoothedRoll.current) * 0.08;
-          smoothedHeading.current += dH * 0.08;
-        } else {
-          // Dynamic motion state: fast, responsive tracking in all directions
-          const dynamicWeight = THREE.MathUtils.clamp(0.4 + gyroRate * 0.02, 0.4, 0.85);
-          smoothedPitch.current += (inPitch - smoothedPitch.current) * dynamicWeight;
-          smoothedRoll.current += (inRoll - smoothedRoll.current) * dynamicWeight;
-          smoothedHeading.current += dH * dynamicWeight;
-        }
-
-        while (smoothedHeading.current < 0) smoothedHeading.current += 360;
-        while (smoothedHeading.current >= 360) smoothedHeading.current -= 360;
       }
-
-      // Add any manual offset
-      const finalPitch = smoothedPitch.current + manualPitchRef.current;
-      const finalRoll = smoothedRoll.current + manualRollRef.current;
-      const finalYaw = smoothedHeading.current + manualYawRef.current;
-
-      // FULL 3D QUATERNION ROTATION (NO GIMBAL LOCK, ROTATES IN ALL DIRECTIONS)
-      const pitchRad = -THREE.MathUtils.degToRad(finalPitch);
-      const yawRad = THREE.MathUtils.degToRad(finalYaw);
-      const rollRad = -THREE.MathUtils.degToRad(finalRoll);
-
-      const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawRad);
-      const qPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitchRad);
-      const qRoll = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), rollRad);
-
-      targetQuaternionRef.current.copy(qYaw).multiply(qPitch).multiply(qRoll);
-    } else if (!hasTelemetryRef.current && (manualPitchRef.current !== 0 || manualRollRef.current !== 0 || manualYawRef.current !== 0)) {
-      // Manual test rotation mode
-      const pitchRad = -THREE.MathUtils.degToRad(manualPitchRef.current);
-      const yawRad = THREE.MathUtils.degToRad(manualYawRef.current);
-      const rollRad = -THREE.MathUtils.degToRad(manualRollRef.current);
-
-      const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawRad);
-      const qPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitchRad);
-      const qRoll = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), rollRad);
-
-      targetQuaternionRef.current.copy(qYaw).multiply(qPitch).multiply(qRoll);
     }
-  }, [telemetry, isConnected, manualOffset]);
-
-  const handleManualRotate = (axis: 'pitch' | 'roll' | 'yaw', delta: number) => {
-    if (axis === 'pitch') {
-      manualPitchRef.current = (manualPitchRef.current + delta) % 360;
-    } else if (axis === 'roll') {
-      manualRollRef.current = (manualRollRef.current + delta) % 360;
-    } else if (axis === 'yaw') {
-      manualYawRef.current = (manualYawRef.current + delta) % 360;
-    }
-    setManualOffset({
-      pitch: manualPitchRef.current,
-      roll: manualRollRef.current,
-      yaw: manualYawRef.current,
-    });
-  };
-
-  const handleResetOrientation = () => {
-    manualPitchRef.current = 0;
-    manualRollRef.current = 0;
-    manualYawRef.current = 0;
-    setManualOffset({ pitch: 0, roll: 0, yaw: 0 });
-    setIsAutoTumbling(false);
-    if (!isConnectedRef.current || !hasTelemetryRef.current) {
-      targetQuaternionRef.current.identity();
-    }
-  };
+  }, [telemetry, isConnected]);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -526,14 +436,25 @@ export const CubeSatelliteViewer: React.FC<CubeSatelliteViewerProps> = ({
     window.addEventListener('mouseup', onMouseUp);
     container.addEventListener('wheel', onWheel, { passive: false });
 
-    // Animation Loop with Multi-Directional Rotation
-    let animationFrameId: number;
-    let clock = new THREE.Clock();
+    // Pre-allocated scratch objects for zero-allocation 60 FPS quaternion math
+    const tempQYaw = new THREE.Quaternion();
+    const tempQPitch = new THREE.Quaternion();
+    const tempQRoll = new THREE.Quaternion();
+    const axisX = new THREE.Vector3(1, 0, 0);
+    const axisY = new THREE.Vector3(0, 1, 0);
+    const axisZ = new THREE.Vector3(0, 0, 1);
+    const identityQuat = new THREE.Quaternion();
 
-    const animate = () => {
+    // High-precision frame timing (eliminates deprecated THREE.Clock warning)
+    let animationFrameId: number;
+    let lastTime = performance.now();
+    const startTime = performance.now();
+
+    const animate = (currentTime: number = performance.now()) => {
       animationFrameId = requestAnimationFrame(animate);
-      const deltaTime = Math.min(clock.getDelta(), 0.05);
-      const elapsedTime = clock.getElapsedTime();
+      const deltaTime = Math.min(Math.max((currentTime - lastTime) / 1000, 0.001), 0.05);
+      lastTime = currentTime;
+      const elapsedTime = (currentTime - startTime) / 1000;
 
       // Optical Beacon Anomaly strobe
       const alertState = alertRef.current;
@@ -566,22 +487,25 @@ export const CubeSatelliteViewer: React.FC<CubeSatelliteViewerProps> = ({
         }
       }
 
-      // AUTO 3D ORBIT TUMBLE MODE
-      if (isAutoTumblingRef.current) {
-        const tumblePitch = Math.sin(elapsedTime * 0.8) * 0.7;
-        const tumbleYaw = elapsedTime * 0.5;
-        const tumbleRoll = Math.cos(elapsedTime * 0.6) * 0.5;
+      // CONTINUOUS FRAME-RATE INDEPENDENT ATTITUDE TRACKING (100% BUTTER-SMOOTH)
+      if (isConnectedRef.current && hasTelemetryRef.current) {
+        // Calculate target orientation quaternion from current telemetry
+        const pitchRad = -THREE.MathUtils.degToRad(targetPitchRef.current);
+        const yawRad = THREE.MathUtils.degToRad(targetYawRef.current);
+        const rollRad = -THREE.MathUtils.degToRad(targetRollRef.current);
 
-        const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), tumbleYaw);
-        const qPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), tumblePitch);
-        const qRoll = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), tumbleRoll);
+        tempQYaw.setFromAxisAngle(axisY, yawRad);
+        tempQPitch.setFromAxisAngle(axisX, pitchRad);
+        tempQRoll.setFromAxisAngle(axisZ, rollRad);
 
-        const autoQuat = new THREE.Quaternion().copy(qYaw).multiply(qPitch).multiply(qRoll);
-        satellitePivot.quaternion.slerp(autoQuat, 1.0 - Math.exp(-8.0 * deltaTime));
+        const targetQuat = tempQYaw.multiply(tempQPitch).multiply(tempQRoll);
+
+        // Pure Quaternion Spherical Linear Interpolation (SLERP):
+        // Constant angular velocity along geodesic shortest arc, zero gimbal coupling, fluid 60 FPS motion!
+        const slerpFactor = 1.0 - Math.exp(-12.0 * deltaTime);
+        satellitePivot.quaternion.slerp(targetQuat, THREE.MathUtils.clamp(slerpFactor, 0.01, 1.0));
       } else {
-        // SMOOTH CRITICALLY DAMPED QUATERNION SLERP IN ALL DIRECTIONS
-        const smoothRate = 1.0 - Math.exp(-7.5 * deltaTime);
-        satellitePivot.quaternion.slerp(targetQuaternionRef.current, smoothRate);
+        satellitePivot.quaternion.slerp(identityQuat, 1.0 - Math.exp(-8.0 * deltaTime));
       }
 
       renderer.render(scene, camera);
@@ -617,11 +541,6 @@ export const CubeSatelliteViewer: React.FC<CubeSatelliteViewerProps> = ({
 
   const isIrregular = alert.isIrregular;
 
-  // Displayed attitude (hardware or manual offset)
-  const displayPitch = (telemetry?.pitch ?? smoothedPitch.current) + manualOffset.pitch;
-  const displayRoll = (telemetry?.roll ?? smoothedRoll.current) + manualOffset.roll;
-  const displayHeading = ((telemetry?.heading ?? smoothedHeading.current) + manualOffset.yaw + 360) % 360;
-
   return (
     <div
       className={`relative w-full rounded-2xl overflow-hidden border bg-white shadow-lg flex flex-col select-none transition-all duration-200 ${
@@ -632,156 +551,16 @@ export const CubeSatelliteViewer: React.FC<CubeSatelliteViewerProps> = ({
           : 'border-slate-300'
       }`}
     >
-      {/* Viewer Header Bar with Full Rotation Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-b border-slate-200 bg-white">
-        <div className="flex items-center gap-3">
-          <span className="px-3.5 py-1.5 bg-slate-950 text-white text-xs font-black rounded-lg tracking-wide uppercase shadow-xs">
-            VIGYANSAT
-          </span>
-          <span
-            className={`px-3 py-1.5 text-xs font-black rounded-lg border uppercase tracking-wider ${
-              isAutoTumbling
-                ? 'bg-blue-100 text-blue-900 border-blue-300 animate-pulse'
-                : alert.severity === 'critical'
-                ? 'bg-rose-50 text-rose-800 border-rose-300 animate-pulse'
-                : alert.severity === 'warning'
-                ? 'bg-amber-50 text-amber-800 border-amber-300'
-                : isConnected && telemetry
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                : 'bg-slate-100 text-slate-700 border-slate-300'
-            }`}
-          >
-            {isAutoTumbling
-              ? '● 360° All-Direction Auto Orbit'
-              : isConnected && telemetry
-              ? '● Live Hardware Tracking (Stabilized)'
-              : '○ Stationary (Awaiting USB)'}
-          </span>
-        </div>
-
-        {/* Action Controls: 360° Auto-Rotate & View Reset */}
-        <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
-          <button
-            onClick={() => setIsAutoTumbling((prev) => !prev)}
-            className={`px-3.5 py-1.5 rounded-lg border transition-all cursor-pointer font-black ${
-              isAutoTumbling
-                ? 'bg-blue-600 text-white border-blue-700 shadow-sm'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-            }`}
-          >
-            {isAutoTumbling ? 'Stop 360° Demo' : '360° Demo Rotate'}
-          </button>
-          <button
-            onClick={() => {
-              handleResetOrientation();
-              resetCameraFnRef.current?.();
-            }}
-            className="text-xs font-black text-slate-800 bg-slate-100 hover:bg-slate-200 px-3.5 py-1.5 rounded-lg border border-slate-300 shadow-2xs transition-colors cursor-pointer uppercase tracking-wider"
-          >
-            Reset All
-          </button>
-        </div>
+      {/* Viewer Header Bar */}
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-white">
+        <span className="px-3.5 py-1.5 bg-slate-950 text-white text-xs font-black rounded-lg tracking-wide uppercase shadow-xs">
+          VIGYANSAT
+        </span>
       </div>
 
       {/* 3D WebGL Canvas Area: Expansive, Taller, and High-Dominance */}
       <div className="relative w-full h-[520px] sm:h-[600px] md:h-[680px] lg:h-[750px] xl:h-[820px]">
         <div ref={mountRef} className="absolute inset-0 cursor-grab active:cursor-grabbing" />
-
-        {/* Floating Directional Manual Rotation Gimbal Controls (Top Right of Canvas) */}
-        <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-white/90 backdrop-blur-sm p-3 rounded-2xl border border-slate-300 shadow-md">
-          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider text-center">
-            Rotate In Any Axis
-          </span>
-          <div className="grid grid-cols-2 gap-1.5 text-xs font-black">
-            <button
-              onClick={() => handleManualRotate('pitch', 15)}
-              className="px-2 py-1 rounded bg-slate-100 hover:bg-red-50 hover:text-red-700 border border-slate-300 hover:border-red-300 text-slate-800 cursor-pointer shadow-2xs"
-              title="Pitch Nose Up"
-            >
-              Pitch +15°
-            </button>
-            <button
-              onClick={() => handleManualRotate('pitch', -15)}
-              className="px-2 py-1 rounded bg-slate-100 hover:bg-red-50 hover:text-red-700 border border-slate-300 hover:border-red-300 text-slate-800 cursor-pointer shadow-2xs"
-              title="Pitch Nose Down"
-            >
-              Pitch -15°
-            </button>
-            <button
-              onClick={() => handleManualRotate('roll', 15)}
-              className="px-2 py-1 rounded bg-slate-100 hover:bg-blue-50 hover:text-blue-700 border border-slate-300 hover:border-blue-300 text-slate-800 cursor-pointer shadow-2xs"
-              title="Roll Wing Right"
-            >
-              Roll +15°
-            </button>
-            <button
-              onClick={() => handleManualRotate('roll', -15)}
-              className="px-2 py-1 rounded bg-slate-100 hover:bg-blue-50 hover:text-blue-700 border border-slate-300 hover:border-blue-300 text-slate-800 cursor-pointer shadow-2xs"
-              title="Roll Wing Left"
-            >
-              Roll -15°
-            </button>
-            <button
-              onClick={() => handleManualRotate('yaw', 15)}
-              className="px-2 py-1 rounded bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-300 hover:border-emerald-300 text-slate-800 cursor-pointer shadow-2xs"
-              title="Yaw Clockwise"
-            >
-              Yaw +15°
-            </button>
-            <button
-              onClick={() => handleManualRotate('yaw', -15)}
-              className="px-2 py-1 rounded bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-300 hover:border-emerald-300 text-slate-800 cursor-pointer shadow-2xs"
-              title="Yaw Counter-Clockwise"
-            >
-              Yaw -15°
-            </button>
-          </div>
-        </div>
-
-        {/* Orbit Hint */}
-        <div className="absolute top-4 left-4 z-10 pointer-events-none">
-          <span className="text-xs font-bold text-slate-600 bg-white/90 px-3 py-1.5 rounded-lg border border-slate-300 shadow-2xs">
-            Drag to orbit full 360° in all directions • Scroll to zoom
-          </span>
-        </div>
-      </div>
-
-      {/* Dedicated Bottom Attitude HUD Bar */}
-      <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50/95 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <span className="w-3 h-3 rounded-full bg-blue-600 animate-pulse" />
-          <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
-            Satellite Attitude:
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-bold font-mono">
-          <div className="bg-white px-4 py-2 rounded-xl border border-slate-300 shadow-xs">
-            <span className="text-slate-500 font-bold mr-2 font-sans text-xs">PITCH (X)</span>
-            <span className="text-slate-950 font-black text-base sm:text-lg">
-              {displayPitch > 0 ? `+${displayPitch.toFixed(1)}` : displayPitch.toFixed(1)}°
-            </span>
-          </div>
-          <div className="bg-white px-4 py-2 rounded-xl border border-slate-300 shadow-xs">
-            <span className="text-slate-500 font-bold mr-2 font-sans text-xs">ROLL (Z)</span>
-            <span className="text-slate-950 font-black text-base sm:text-lg">
-              {displayRoll > 0 ? `+${displayRoll.toFixed(1)}` : displayRoll.toFixed(1)}°
-            </span>
-          </div>
-          <div className="bg-white px-4 py-2 rounded-xl border border-slate-300 shadow-xs">
-            <span className="text-slate-500 font-bold mr-2 font-sans text-xs">HEADING (Y)</span>
-            <span className="text-blue-700 font-black text-base sm:text-lg">
-              {displayHeading.toFixed(1)}° [{telemetry?.cardinal ?? '--'}]
-            </span>
-          </div>
-        </div>
-
-        {/* Coordinate Axis Legend */}
-        <div className="hidden md:flex items-center gap-2.5 text-xs font-black">
-          <span className="px-3 py-1.5 rounded-lg bg-red-100 text-red-800 border border-red-200">X (Pitch)</span>
-          <span className="px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200">Y (Yaw)</span>
-          <span className="px-3 py-1.5 rounded-lg bg-blue-100 text-blue-800 border border-blue-200">Z (Roll)</span>
-        </div>
       </div>
     </div>
   );

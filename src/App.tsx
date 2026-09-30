@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { TelemetryData, UsbStatus } from './types/telemetry';
+import { initialTelemetryState } from './utils/telemetryParser';
 import { CubeSatelliteViewer } from './components/CubeSatelliteViewer';
 import { UsbSerial } from './components/UsbSerial';
 import { Telemetry } from './components/Telemetry';
@@ -12,24 +13,71 @@ export default function App() {
   const [lastDataTimestamp, setLastDataTimestamp] = useState<number | null>(null);
   const [packetCount, setPacketCount] = useState<number>(0);
 
-  const handleTelemetryData = (data: TelemetryData) => {
-    setTelemetry(data);
-    setLastDataTimestamp(Date.now());
-    setPacketCount((prev) => prev + 1);
-  };
+  // In-memory high-speed telemetry buffer (decouples high-rate serial from React rendering)
+  const latestTelemetryRef = useRef<TelemetryData | null>(null);
+  const totalPacketsRef = useRef<number>(0);
+  const lastPacketTimeRef = useRef<number | null>(null);
+  const hasPendingUpdateRef = useRef<boolean>(false);
+  const isFirstPacketRef = useRef<boolean>(true);
 
-  const handleClearTelemetry = () => {
+  // High-speed receiver (called from serial reader loop, costs < 0.001ms)
+  const handleTelemetryData = useCallback((data: TelemetryData) => {
+    latestTelemetryRef.current = data;
+    totalPacketsRef.current += 1;
+    lastPacketTimeRef.current = Date.now();
+    hasPendingUpdateRef.current = true;
+
+    // Instant zero-delay render on first incoming packet
+    if (isFirstPacketRef.current) {
+      isFirstPacketRef.current = false;
+      setTelemetry({ ...data });
+      setLastDataTimestamp(Date.now());
+      setPacketCount(1);
+    }
+  }, []);
+
+  // Clear handler
+  const handleClearTelemetry = useCallback(() => {
+    latestTelemetryRef.current = null;
+    totalPacketsRef.current = 0;
+    lastPacketTimeRef.current = null;
+    hasPendingUpdateRef.current = false;
+    isFirstPacketRef.current = true;
     setTelemetry(null);
     setLastDataTimestamp(null);
     setPacketCount(0);
-  };
+  }, []);
 
-  const handleStatusChange = (newStatus: UsbStatus) => {
-    setUsbStatus(newStatus);
-    if (newStatus === 'DISCONNECTED') {
-      handleClearTelemetry();
-    }
-  };
+  const handleStatusChange = useCallback(
+    (newStatus: UsbStatus) => {
+      setUsbStatus(newStatus);
+      if (newStatus === 'CONNECTED') {
+        // Activate baseline telemetry state so instruments and 3D simulation start immediately
+        setTelemetry({ ...initialTelemetryState, timestamp: Date.now() });
+      } else if (newStatus === 'DISCONNECTED') {
+        handleClearTelemetry();
+      }
+    },
+    [handleClearTelemetry]
+  );
+
+  // High-performance 60 FPS UI dispatcher synchronized directly with screen refresh rate
+  useEffect(() => {
+    let animId: number;
+
+    const renderLoop = () => {
+      if (hasPendingUpdateRef.current && latestTelemetryRef.current) {
+        hasPendingUpdateRef.current = false;
+        setTelemetry({ ...latestTelemetryRef.current });
+        setLastDataTimestamp(lastPacketTimeRef.current);
+        setPacketCount(totalPacketsRef.current);
+      }
+      animId = requestAnimationFrame(renderLoop);
+    };
+
+    animId = requestAnimationFrame(renderLoop);
+    return () => cancelAnimationFrame(animId);
+  }, []);
 
   // Compute irregular level alert
   const alert = useMemo(() => {
@@ -51,24 +99,18 @@ export default function App() {
               Flight Ground Station
             </span>
           </div>
-          <div className="flex items-center gap-3 text-xs sm:text-sm font-bold text-slate-700">
-            <span className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-slate-300 shadow-2xs">
-              <span className={`w-3 h-3 rounded-full ${hasTelemetry ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-              {hasTelemetry ? 'Telemetry Stream Active (4 Hz)' : usbStatus === 'CONNECTED' ? 'USB Port Connected' : 'System Standby'}
-            </span>
+
+          {/* Top of Dashboard: USB Connect / Disconnect Action */}
+          <div className="flex items-center">
+            <UsbSerial
+              status={usbStatus}
+              onStatusChange={handleStatusChange}
+              onTelemetryData={handleTelemetryData}
+              onClearTelemetry={handleClearTelemetry}
+              packetCount={packetCount}
+            />
           </div>
         </header>
-
-        {/* USB Connection Interface Card */}
-        <section>
-          <UsbSerial
-            status={usbStatus}
-            onStatusChange={handleStatusChange}
-            onTelemetryData={handleTelemetryData}
-            onClearTelemetry={handleClearTelemetry}
-            packetCount={packetCount}
-          />
-        </section>
 
         {/* Irregular Anomaly Alert Banner */}
         {hasTelemetry && (
