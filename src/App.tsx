@@ -6,7 +6,6 @@ import { UsbSerial } from './components/UsbSerial';
 import { Telemetry } from './components/Telemetry';
 import { IrregularAlertBanner } from './components/IrregularAlertBanner';
 import { detectIrregularLevels } from './utils/anomalyDetector';
-import { VigyansatLogo } from './components/VigyansatLogo';
 
 export default function App() {
   const [usbStatus, setUsbStatus] = useState<UsbStatus>('DISCONNECTED');
@@ -90,9 +89,21 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col p-3 sm:p-5 md:p-6 lg:p-8 font-sans antialiased selection:bg-blue-500/20">
       <div className="w-full max-w-[1920px] mx-auto flex flex-col gap-5 sm:gap-6">
-        {/* Top Mission Command Header with Logo */}
+        {/* Top Mission Command Header */}
         <header className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-300">
-          <VigyansatLogo size="md" showSubtitle={true} />
+          <div className="flex items-center gap-3.5">
+            <img
+              src="/vigyansat-logo.svg"
+              alt="vigyansat logo"
+              className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl object-contain shadow-xs shrink-0"
+            />
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-slate-950 uppercase">
+              VIGYANSAT
+            </h1>
+            <span className="text-xs sm:text-sm font-black uppercase tracking-wider px-3.5 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+              Flight Ground Station
+            </span>
+          </div>
 
           {/* Top of Dashboard: USB Connect / Disconnect Action */}
           <div className="flex items-center">

@@ -159,6 +159,16 @@ export const UsbSerial: React.FC<UsbSerialProps> = ({
             }
           } catch (innerErr: any) {
             const msg = innerErr?.message || String(innerErr);
+            const isDeviceLost =
+              innerErr?.name === 'NetworkError' ||
+              innerErr?.name === 'NotFoundError' ||
+              /device has been lost|device lost/i.test(msg);
+
+            if (isDeviceLost) {
+              isReadingRef.current = false;
+              break;
+            }
+
             if (isReadingRef.current) {
               console.warn('Recovered from transient serial packet glitch:', msg);
             }
@@ -180,10 +190,7 @@ export const UsbSerial: React.FC<UsbSerialProps> = ({
         }
       }
 
-      if (isReadingRef.current) {
-        addLog('Hardware serial session ended.');
-        await cleanupPort();
-      }
+      await cleanupPort();
     },
     [addLog, cleanupPort]
   );
