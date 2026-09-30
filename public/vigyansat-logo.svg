@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0c234a" />
+      <stop offset="50%" stop-color="#071733" />
+      <stop offset="100%" stop-color="#030b1c" />
+    </linearGradient>
+
+    <!-- Radial Nebula Glow Behind Earth -->
+    <radialGradient id="nebulaGlow" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#2563eb" stop-opacity="0.45" />
+      <stop offset="60%" stop-color="#1e3a8a" stop-opacity="0.15" />
+      <stop offset="100%" stop-color="#071733" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Earth Globe Gradient -->
+    <radialGradient id="earthGrad" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#60a5fa" />
+      <stop offset="45%" stop-color="#2563eb" />
+      <stop offset="85%" stop-color="#1e3a8a" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </radialGradient>
+
+    <!-- Atmosphere Rim Gradient -->
+    <radialGradient id="atmoGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="88%" stop-color="#38bdf8" stop-opacity="0" />
+      <stop offset="96%" stop-color="#60a5fa" stop-opacity="0.5" />
+      <stop offset="100%" stop-color="#93c5fd" stop-opacity="0.8" />
+    </radialGradient>
+
+    <!-- Rocket Arrowhead Gradient (Light side) -->
+    <linearGradient id="rocketLight" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ea580c" />
+      <stop offset="50%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#fde047" />
+    </linearGradient>
+
+    <!-- Rocket Arrowhead Gradient (Dark side) -->
+    <linearGradient id="rocketDark" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#c2410c" />
+      <stop offset="60%" stop-color="#ea580c" />
+      <stop offset="100%" stop-color="#f97316" />
+    </linearGradient>
+
+    <!-- Orbit Swoosh Gradient -->
+    <linearGradient id="swooshGrad" x1="0%" y1="50%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ea580c" />
+      <stop offset="40%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#fb923c" />
+    </linearGradient>
+
+    <!-- Satellite Panel Gradient -->
+    <linearGradient id="solarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7dd3fc" />
+      <stop offset="50%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+
+    <!-- Satellite Body Gradient -->
+    <linearGradient id="satBody" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fb923c" />
+      <stop offset="100%" stop-color="#ea580c" />
+    </linearGradient>
+
+    <!-- Clip Path for Earth Globe -->
+    <clipPath id="earthClip">
+      <circle cx="260" cy="220" r="118" />
+    </clipPath>
+  </defs>
+
+  <!-- Base App Icon Container with Rounded Corners -->
+  <rect width="512" height="512" rx="104" fill="url(#bgGrad)" />
+
+  <!-- Outer Subtle Stroke -->
+  <rect width="508" height="508" x="2" y="2" rx="102" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-opacity="0.4" />
+
+  <!-- Background Space Glow -->
+  <circle cx="260" cy="220" r="190" fill="url(#nebulaGlow)" />
+
+  <!-- ORBIT SWOOSH (Back Arc behind Earth) -->
+  <path d="M 120 270 C 95 240 120 180 200 160 C 230 152 260 150 290 155" fill="none" stroke="#ea580c" stroke-width="12" stroke-linecap="round" opacity="0.4" />
+
+  <!-- EARTH GLOBE -->
+  <circle cx="260" cy="220" r="118" fill="url(#earthGrad)" />
+
+  <!-- Continents (clipped inside globe) -->
+  <g clip-path="url(#earthClip)">
+    <!-- North & Central America -->
+    <path d="M 185 160 Q 200 145 225 150 Q 235 165 220 185 Q 205 195 210 215 Q 195 225 185 200 Z" fill="#93c5fd" opacity="0.65" />
+    <!-- South America -->
+    <path d="M 215 225 Q 235 230 240 255 Q 230 285 215 305 Q 205 285 210 250 Z" fill="#93c5fd" opacity="0.65" />
+    <!-- Eurasia / Arctic -->
+    <path d="M 245 135 Q 280 130 320 145 Q 345 160 330 185 Q 305 175 290 190 Q 265 170 250 155 Z" fill="#93c5fd" opacity="0.6" />
+    <!-- Africa -->
+    <path d="M 275 195 Q 305 195 320 220 Q 315 255 295 275 Q 280 250 280 220 Z" fill="#93c5fd" opacity="0.6" />
+    <!-- South Polar Ice Cap -->
+    <ellipse cx="260" cy="335" rx="75" ry="16" fill="#bfdbfe" opacity="0.4" />
+    <!-- Atmosphere haze over globe -->
+    <circle cx="260" cy="220" r="118" fill="url(#atmoGlow)" />
+  </g>
+
+  <!-- ORBIT SWOOSH (Front sweeping double-band arc) -->
+  <!-- Outer orange trail -->
+  <path d="M 98 274 C 105 304 150 330 230 318 C 300 306 350 260 375 195" fill="none" stroke="url(#swooshGrad)" stroke-width="17" stroke-linecap="round" />
+  <!-- Inner orange trail accent -->
+  <path d="M 120 292 C 145 316 195 330 255 318 C 305 308 340 278 360 230" fill="none" stroke="#ea580c" stroke-width="8" stroke-linecap="round" />
+
+  <!-- DYNAMIC ARROWHEAD / ROCKET VECTOR ("A" EMBLEM) -->
+  <!-- Left Wing / Dark shaded fuselage side -->
+  <path d="M 269 76 L 195 240 L 244 218 L 269 76 Z" fill="url(#rocketDark)" filter="drop-shadow(0 4px 10px rgba(0,0,0,0.5))" />
+  <!-- Right Wing / Lit fuselage side -->
+  <path d="M 269 76 L 273 378 L 253 374 L 244 218 Z" fill="url(#rocketLight)" filter="drop-shadow(0 4px 10px rgba(0,0,0,0.4))" />
+  <!-- Center Highlight Spine -->
+  <line x1="269" y1="76" x2="253" y2="374" stroke="#fef08a" stroke-width="2.5" opacity="0.75" />
+
+  <!-- SATELLITE (Top Right in Orbit) -->
+  <g transform="translate(372, 178) rotate(42)">
+    <!-- Thruster / Exhaust Flame Trail -->
+    <path d="M 0 32 L -8 52 L 0 46 L 8 52 Z" fill="#f97316" />
+    <path d="M 0 32 L -4 44 L 0 40 L 4 44 Z" fill="#fef08a" />
+
+    <!-- Left Solar Array Arm -->
+    <line x1="-12" y1="0" x2="-44" y2="0" stroke="#0f172a" stroke-width="3" />
+    <rect x="-44" y="-14" width="30" height="28" rx="2" fill="url(#solarGrad)" stroke="#0369a1" stroke-width="1.5" />
+    <!-- Panel Grid lines -->
+    <line x1="-29" y1="-14" x2="-29" y2="14" stroke="#0284c7" stroke-width="1" />
+    <line x1="-44" y1="0" x2="-14" y2="0" stroke="#0284c7" stroke-width="1" />
+
+    <!-- Right Solar Array Arm -->
+    <line x1="12" y1="0" x2="44" y2="0" stroke="#0f172a" stroke-width="3" />
+    <rect x="14" y="-14" width="30" height="28" rx="2" fill="url(#solarGrad)" stroke="#0369a1" stroke-width="1.5" />
+    <!-- Panel Grid lines -->
+    <line x1="29" y1="-14" x2="29" y2="14" stroke="#0284c7" stroke-width="1" />
+    <line x1="14" y1="0" x2="44" y2="0" stroke="#0284c7" stroke-width="1" />
+
+    <!-- Satellite Central Bus Cube Body -->
+    <rect x="-12" y="-16" width="24" height="32" rx="3" fill="url(#satBody)" stroke="#9a3412" stroke-width="2" />
+    <circle cx="0" cy="0" r="4.5" fill="#fef08a" />
+
+    <!-- Parabolic Antenna Dish on Top -->
+    <path d="M -9 -22 C -6 -28 6 -28 9 -22 Z" fill="#93c5fd" stroke="#1e40af" stroke-width="1.5" />
+    <line x1="0" y1="-16" x2="0" y2="-25" stroke="#cbd5e1" stroke-width="2" />
+    <circle cx="0" cy="-26" r="2.5" fill="#ef4444" />
+  </g>
+
+  <!-- TYPOGRAPHY: vigyansat -->
+  <text x="256" y="424" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="900" font-size="64" fill="#ffffff" letter-spacing="-0.5px">
+    vigyansat
+  </text>
+
+  <!-- SUBTITLE: Science for Society -->
+  <text x="256" y="468" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="600" font-size="24" fill="#f8fafc" letter-spacing="1.5px">
+    Science for Society
+  </text>
+</svg>
